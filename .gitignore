@@ -1,3 +1,5 @@
 parse
 match
 go-echoprint
+!bin/parse
+!bin/match

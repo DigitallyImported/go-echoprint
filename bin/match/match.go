@@ -1,11 +1,10 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"os"
-	"runtime"
-	"sync"
 
 	"github.com/AudioAddict/go-echoprint/echoprint"
 )
@@ -21,42 +20,34 @@ func fatal(err error) {
 	os.Exit(1)
 }
 
+var codegenPath = flag.String("path", "", "path to codegen file to match")
+
 func main() {
-	if len(os.Args) < 2 {
-		fmt.Fprintf(os.Stderr, "usage: %s [path/to/echoprint.json]\n", os.Args[0])
-		os.Exit(1)
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "usage: %s [options]\n", os.Args[0])
+		flag.PrintDefaults()
+		os.Exit(2)
 	}
 
-	runtime.GOMAXPROCS(runtime.NumCPU())
-
-	fpList, err := echoprint.ParseCodegenFile(os.Args[1])
-	dieOrNah(err)
-
-	mm, err := echoprint.NewMatchMaker()
-	dieOrNah(err)
-
-	var wg sync.WaitGroup
-	for _, codegenFp := range fpList {
-		wg.Add(1)
-
-		go func(codegenFp echoprint.CodegenFp) {
-			defer wg.Done()
-
-			log.Printf("Processing codegen TrackID=%d, Version=%f, Filename=%s\n",
-				codegenFp.TrackID, codegenFp.Metadata.Version, codegenFp.Metadata.Filename)
-
-			fp, err := echoprint.NewFingerprint(codegenFp.Code, codegenFp.Metadata.Version)
-			dieOrNah(err)
-
-			// log.Printf("%d Code/Time pairs\n", len(fp.Codes))
-
-			matches, err := mm.Match(fp)
-			dieOrNah(err)
-
-			log.Println("Number of matches found:", len(matches))
-		}(codegenFp)
-		//dieOrNah(err)
+	flag.Parse()
+	if *codegenPath == "" {
+		flag.Usage()
 	}
 
-	wg.Wait()
+	codegenList, err := echoprint.ParseCodegenFile(*codegenPath)
+	dieOrNah(err)
+
+	err = echoprint.DBConnect()
+	dieOrNah(err)
+	defer echoprint.DBDisconnect()
+
+	allMatches, err := echoprint.MatchAll(codegenList)
+	dieOrNah(err)
+
+	for group, matches := range allMatches {
+		log.Println("Matches for group ", group)
+		for _, match := range matches {
+			log.Printf("\t%+v", match)
+		}
+	}
 }

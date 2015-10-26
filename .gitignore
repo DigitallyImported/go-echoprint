@@ -3,3 +3,4 @@ match
 go-echoprint
 !bin/parse
 !bin/match
+echoprint.db

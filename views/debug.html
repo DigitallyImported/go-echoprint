@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Echoprint Debug</title>
+    <script>
+      function ingest() {
+        alert('ingest');
+      }
+
+      function query() {
+        alert('query');
+      }
+    </script>
+  </head>
+  <body>
+    <p>Perform a lookup or ingestion of 1 or more codegen fingerprints</p>
+    <form method="post" action="/debug">
+      <textarea rows="20" cols="125" name="data"></textarea>
+      <div>
+        <input type="submit" name="debug_op" value="Ingest">
+        <input type="submit" name="debug_op" value="Query">
+      </div>
+    </form>
+
+  </body>
+</html>

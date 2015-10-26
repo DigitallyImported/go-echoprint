@@ -1,11 +1,10 @@
 package echoprint
 
 import (
-	"log"
-	"strconv"
-	"strings"
+	"sort"
+	"sync"
 
-	"github.com/AudioAddict/go-solr/solr"
+	"github.com/golang/glog"
 )
 
 const (
@@ -15,114 +14,173 @@ const (
 	minMatchScorePercent = 0.05 * 100
 	minMatchConfidence   = 0.25 * 100
 	bestMatchDiff        = 0.25
+	maxConfidence        = 100.00
 )
-
-// MatchMaker holds information for making matches
-type MatchMaker struct {
-	si *solr.SolrInterface
-}
 
 // MatchResult represents a response from the fingerprint matching algorithm
 type MatchResult struct {
-	fp    *Fingerprint
-	score float32
+	fp         *Fingerprint
+	Best       bool    `json:"best"`
+	TrackID    uint32  `json:"track_id"`
+	UPC        string  `json:"upc"`
+	ISRC       string  `json:"isrc"`
+	Confidence float32 `json:"confidence"`
+	IngestedAt string  `json:"ingested_at"`
 }
 
-func newMatchResult() MatchResult {
-	return MatchResult{
-		fp: &Fingerprint{},
+// implement sort.Interface for MatchResults to sort by confidence (descending)
+type byConfidence []*MatchResult
+
+func (m byConfidence) Len() int           { return len(m) }
+func (m byConfidence) Swap(i, j int)      { m[i], m[j] = m[j], m[i] }
+func (m byConfidence) Less(i, j int) bool { return m[i].Confidence > m[j].Confidence }
+
+func newMatchResult(r dbResult) *MatchResult {
+	return &MatchResult{
+		fp:         r.fp,
+		TrackID:    r.trackID,
+		IngestedAt: r.ingestedAt,
 	}
 }
 
-// NewMatchMaker returns an instance of MatchMaker
-func NewMatchMaker() (m *MatchMaker, err error) {
-	m = &MatchMaker{}
+// MatchAll performs mutiple matches in parallel, results are grouped by the index of the
+// fingerprint list so they may be returned in the order they are received
+func MatchAll(codegenList []CodegenFp) ([][]*MatchResult, error) {
+	var allMatches = make([][]*MatchResult, len(codegenList))
+	var wg sync.WaitGroup
 
-	// TODO: config
-	m.si, err = solr.NewSolrInterface("http://vagrant-env-platform:8980/solr", "echoprint")
-	return
+	for i, codegenFp := range codegenList {
+		wg.Add(1)
+		go func(group int, codegenFp CodegenFp) {
+			defer wg.Done()
+
+			glog.Infof("Processing codegen TrackID=%d, Version=%f, Filename=%s\n",
+				codegenFp.TrackID, codegenFp.Metadata.Version, codegenFp.Metadata.Filename)
+
+			fp, err := NewFingerprint(codegenFp.Code, codegenFp.Metadata.Version)
+			if err != nil {
+				glog.Info(err)
+				return
+			}
+
+			matches, err := Match(fp)
+			if err != nil {
+				glog.Info(err)
+				return
+			}
+
+			glog.Info("Number of matches found:", len(matches))
+			allMatches[group] = matches
+		}(i, codegenFp)
+	}
+
+	wg.Wait()
+
+	return allMatches, nil
 }
 
-// Match attempts to find the fingerprint provided in the database
-// and returns an array of MatchResult
-func (mm *MatchMaker) Match(fp *Fingerprint) ([]MatchResult, error) {
+// Match attempts to find the fingerprint provided in the database and returns an array of MatchResult
+func Match(fp *Fingerprint) ([]*MatchResult, error) {
 	t := trackTime("Match")
-	defer t.finish(true)
+	defer t.finish()
 
 	if !fp.clamped {
 		fp = fp.NewClamped()
 	}
 
-	matches, err := mm.fpQuery(fp.Codes, 30, minMatchScorePercent)
+	var matches []*MatchResult
+	results, err := db.Query(fp, 500, minMatchScorePercent)
+
+	for _, r := range results {
+		match := newMatchResult(r)
+		match.Confidence = calculateConfidence(fp, match.fp, uint32(histogramMatchSlop))
+		if match.Confidence >= minMatchConfidence {
+			glog.V(1).Info("Match result above minimum threshold, Confidence=", match.Confidence, " TrackID=", match.TrackID)
+			matches = append(matches, match)
+		} else {
+			glog.V(2).Info("Match result below minimum threshold, Confidence=", match.Confidence, " TrackID=", match.TrackID)
+		}
+	}
+
+	numMatches := len(matches)
+
+	if numMatches > 0 {
+		sort.Sort(byConfidence(matches))
+		determineBestMatch(matches)
+		clampMatchConfidence(matches)
+	}
+
 	return matches, err
 }
 
-func (mm *MatchMaker) fpQuery(codes []uint32, rows int, minScore float32) ([]MatchResult, error) {
-	var querySet = make(map[uint32]struct{})
-
-	// build the unique set of codes for scoring
-	for _, code := range codes {
-		querySet[uint32(code)] = struct{}{}
-	}
-
-	var codeListParams = make([]string, len(querySet))
-	var i int
-	for code := range querySet {
-		codeListParams[i] = strconv.Itoa(int(code))
-		i++
-	}
-
-	query := solr.NewQuery()
-	query.Q("codes:" + strings.Join(codeListParams, " "))
-	query.Rows(rows)
-	//query.FieldList("id,score")
-	s := mm.si.Search(query)
-	r, err := s.Result(nil)
-	if err != nil {
-		return nil, err
-	}
-
-	log.Printf("Number of documents: %d", r.Results.NumFound)
-
-	var matches []MatchResult
-	var codeInt uint32
-	for _, doc := range r.Results.Docs {
-		m := newMatchResult()
-		matchSet := make(map[uint32]struct{})
-		codes := doc.Get("codes").([]interface{})
-		times := doc.Get("times").([]interface{})
-
-		m.fp.Codes = make([]uint32, len(codes))
-		m.fp.Times = make([]uint32, len(times))
-
-		for i, val := range codes {
-			codeInt = uint32(val.(float64))
-			matchSet[codeInt] = struct{}{}
-			m.fp.Codes[i] = codeInt
-			m.fp.Times[i] = uint32(times[i].(float64))
-		}
-
-		score := calculateScore(querySet, matchSet)
-		//log.Println("Score=", m.score)
-		if score >= minScore {
-			m.score = score
-			matches = append(matches, m)
+// determine if we have a "best" match
+func determineBestMatch(matches []*MatchResult) {
+	if len(matches) == 1 {
+		matches[0].Best = true
+		glog.V(2).Infof("Single good match, marking as best: %+v", matches[0])
+	} else {
+		// top match is different enough to call it best
+		if matches[0].Confidence-matches[1].Confidence >= matches[0].Confidence*bestMatchDiff {
+			matches[0].Best = true
+			glog.V(2).Infof("Multiple good matches, top result is different enough, marking as best: %+v", matches[0])
+		} else {
+			glog.V(2).Info("Multiple good matches, top result is not different enough, no best match found")
 		}
 	}
-
-	return matches, nil
 }
 
-func calculateScore(qSet, mSet map[uint32]struct{}) float32 {
-	t := trackTime("calculateScore")
-	defer t.finish(false)
+func clampMatchConfidence(matches []*MatchResult) {
+	for _, match := range matches {
+		if match.Confidence > maxConfidence {
+			match.Confidence = maxConfidence
+		}
+	}
+}
 
-	var count int
-	for code := range qSet {
-		if _, ok := mSet[code]; ok {
-			count++
+func calculateConfidence(fp *Fingerprint, matchFp *Fingerprint, slop uint32) float32 {
+	t := trackTime("calculateActualScore")
+	defer t.finish()
+
+	timeDiffs := make(map[int]uint16)
+	matchCodeMap := getCodeTimeMap(matchFp, slop)
+	for i, code := range fp.Codes {
+		fpTime := fp.Times[i] / slop * slop
+
+		if matchTimes, ok := matchCodeMap[code]; ok {
+			for _, matchTime := range matchTimes {
+				dist := int(fpTime - matchTime)
+				if dist < 0 {
+					dist = -dist
+				}
+				timeDiffs[dist]++
+			}
 		}
 	}
 
-	return float32(count) / float32(len(qSet)) * 100.00
+	var timeDiffVals []int
+	for _, key := range timeDiffs {
+		timeDiffVals = append(timeDiffVals, int(key))
+	}
+	sort.Sort(sort.Reverse(sort.IntSlice(timeDiffVals)))
+
+	var score int
+	if len(timeDiffVals) > 0 {
+		score = timeDiffVals[0]
+		if len(timeDiffVals) > 1 {
+			score += timeDiffVals[1]
+		}
+	}
+
+	return float32(score) / float32(len(fp.Codes)) * 100.00
+}
+
+func getCodeTimeMap(fp *Fingerprint, slop uint32) map[uint32][]uint32 {
+	codeMap := make(map[uint32][]uint32, len(fp.Codes))
+
+	for i, code := range fp.Codes {
+		time := fp.Times[i] / slop * slop
+		codeMap[code] = append(codeMap[code], time)
+	}
+
+	return codeMap
 }

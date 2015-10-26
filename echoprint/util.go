@@ -1,8 +1,9 @@
 package echoprint
 
 import (
-	"log"
 	"time"
+
+	"github.com/golang/glog"
 )
 
 var timeTrackers map[string][]*timeTracker
@@ -21,12 +22,10 @@ func trackTime(label string) *timeTracker {
 	return &timeTracker{label, time.Now(), 0}
 }
 
-func (tt *timeTracker) finish(shouldLog bool) {
+func (tt *timeTracker) finish() {
 	tt.Elapsed = time.Since(tt.Start)
 	timeTrackers[tt.Label] = append(timeTrackers[tt.Label], tt)
-	if shouldLog {
-		log.Printf("-- %s took %s", tt.Label, tt.Elapsed)
-	}
+	glog.V(3).Infof("-- %s took %s", tt.Label, tt.Elapsed)
 }
 
 // TotalTime returns the total duration of all timed functions

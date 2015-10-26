@@ -28,6 +28,11 @@ type MatchResult struct {
 	IngestedAt string  `json:"ingested_at"`
 }
 
+// MatchError holds information for a match that failed due to an error during processing
+type MatchError struct {
+	Error string `json:"error"`
+}
+
 // implement sort.Interface for MatchResults to sort by confidence (descending)
 type byConfidence []*MatchResult
 
@@ -45,8 +50,8 @@ func newMatchResult(r dbResult) *MatchResult {
 
 // MatchAll performs mutiple matches in parallel, results are grouped by the index of the
 // fingerprint list so they may be returned in the order they are received
-func MatchAll(codegenList []CodegenFp) ([][]*MatchResult, error) {
-	var allMatches = make([][]*MatchResult, len(codegenList))
+func MatchAll(codegenList []CodegenFp) ([]interface{}, error) {
+	var allMatches = make([]interface{}, len(codegenList))
 	var wg sync.WaitGroup
 
 	for i, codegenFp := range codegenList {
@@ -60,12 +65,14 @@ func MatchAll(codegenList []CodegenFp) ([][]*MatchResult, error) {
 			fp, err := NewFingerprint(codegenFp.Code, codegenFp.Metadata.Version)
 			if err != nil {
 				glog.Info(err)
+				allMatches[group] = MatchError{err.Error()}
 				return
 			}
 
 			matches, err := Match(fp)
 			if err != nil {
 				glog.Info(err)
+				allMatches[group] = MatchError{err.Error()}
 				return
 			}
 

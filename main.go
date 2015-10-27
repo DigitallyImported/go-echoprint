@@ -10,12 +10,6 @@ import (
 	"github.com/gorilla/mux"
 )
 
-//TODO:
-// - http server listen for requests
-// - parse a fingerprint into array of code/time ints
-// - query solr for documents
-// - rank matches and perform histogram
-// - return results
 func main() {
 	flag.Parse()
 	defer glog.Flush()

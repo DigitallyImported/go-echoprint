@@ -41,8 +41,7 @@ func main() {
 	dieOrNah(err)
 	defer echoprint.DBDisconnect()
 
-	allMatches, err := echoprint.MatchAll(codegenList)
-	dieOrNah(err)
+	allMatches := echoprint.MatchAll(codegenList)
 
 	for group, matches := range allMatches {
 		log.Println("Matches for group ", group)

@@ -20,17 +20,13 @@ const (
 // MatchResult represents a response from the fingerprint matching algorithm
 type MatchResult struct {
 	fp         *Fingerprint
-	Best       bool    `json:"best"`
-	TrackID    uint32  `json:"track_id"`
-	UPC        string  `json:"upc"`
-	ISRC       string  `json:"isrc"`
-	Confidence float32 `json:"confidence"`
-	IngestedAt string  `json:"ingested_at"`
-}
-
-// MatchError holds information for a match that failed due to an error during processing
-type MatchError struct {
-	Error string `json:"error"`
+	Best       bool        `json:"best"`
+	TrackID    uint32      `json:"track_id"`
+	UPC        string      `json:"upc"`
+	ISRC       string      `json:"isrc"`
+	Confidence float32     `json:"confidence"`
+	IngestedAt string      `json:"ingested_at"`
+	Error      interface{} `json:"error"`
 }
 
 // implement sort.Interface for MatchResults to sort by confidence (descending)
@@ -43,15 +39,21 @@ func (m byConfidence) Less(i, j int) bool { return m[i].Confidence > m[j].Confid
 func newMatchResult(r dbResult) *MatchResult {
 	return &MatchResult{
 		fp:         r.fp,
-		TrackID:    r.trackID,
+		TrackID:    r.fp.Meta.TrackID,
+		UPC:        r.fp.Meta.UPC,
+		ISRC:       r.fp.Meta.ISRC,
 		IngestedAt: r.ingestedAt,
 	}
 }
 
+func newMatchGroupError(err error) []*MatchResult {
+	return []*MatchResult{&MatchResult{Error: err.Error()}}
+}
+
 // MatchAll performs mutiple matches in parallel, results are grouped by the index of the
 // fingerprint list so they may be returned in the order they are received
-func MatchAll(codegenList []CodegenFp) ([]interface{}, error) {
-	var allMatches = make([]interface{}, len(codegenList))
+func MatchAll(codegenList []CodegenFp) [][]*MatchResult {
+	var allMatches = make([][]*MatchResult, len(codegenList))
 	var wg sync.WaitGroup
 
 	for i, codegenFp := range codegenList {
@@ -59,20 +61,17 @@ func MatchAll(codegenList []CodegenFp) ([]interface{}, error) {
 		go func(group int, codegenFp CodegenFp) {
 			defer wg.Done()
 
-			glog.Infof("Processing codegen TrackID=%d, Version=%f, Filename=%s\n",
-				codegenFp.TrackID, codegenFp.Metadata.Version, codegenFp.Metadata.Filename)
+			glog.Infof("Processing codegen %+v\n", codegenFp.Meta)
 
-			fp, err := NewFingerprint(codegenFp.Code, codegenFp.Metadata.Version)
+			fp, err := NewFingerprint(codegenFp)
 			if err != nil {
-				glog.Info(err)
-				allMatches[group] = MatchError{err.Error()}
+				allMatches[group] = newMatchGroupError(err)
 				return
 			}
 
 			matches, err := Match(fp)
 			if err != nil {
-				glog.Info(err)
-				allMatches[group] = MatchError{err.Error()}
+				allMatches[group] = newMatchGroupError(err)
 				return
 			}
 
@@ -83,7 +82,7 @@ func MatchAll(codegenList []CodegenFp) ([]interface{}, error) {
 
 	wg.Wait()
 
-	return allMatches, nil
+	return allMatches
 }
 
 // Match attempts to find the fingerprint provided in the database and returns an array of MatchResult
@@ -96,7 +95,12 @@ func Match(fp *Fingerprint) ([]*MatchResult, error) {
 	}
 
 	var matches []*MatchResult
-	results, err := db.Query(fp, 500, minMatchScorePercent)
+	results, err := db.query(fp, 500, minMatchScorePercent)
+
+	if err != nil {
+		glog.Error(err)
+		return nil, err
+	}
 
 	for _, r := range results {
 		match := newMatchResult(r)
@@ -117,7 +121,7 @@ func Match(fp *Fingerprint) ([]*MatchResult, error) {
 		clampMatchConfidence(matches)
 	}
 
-	return matches, err
+	return matches, nil
 }
 
 // determine if we have a "best" match

@@ -26,6 +26,8 @@ func main() {
 	router.HandleFunc("/query", queryHandler).Methods("GET", "POST")
 	router.HandleFunc("/ingest", ingestHandler).Methods("POST")
 
+	router.HandleFunc("/purge", purgeHandler).Methods("GET")
+
 	loggingHandler := NewLoggingHandler(router)
 	serverAddr := fmt.Sprintf(":%d", 8080)
 	server := &http.Server{

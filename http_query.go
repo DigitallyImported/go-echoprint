@@ -18,12 +18,12 @@ func queryHandler(w http.ResponseWriter, r *http.Request) {
 	renderResponse(w, matches)
 }
 
-func peformQuery(jsonData []byte) ([]interface{}, error) {
+func peformQuery(jsonData []byte) ([][]*echoprint.MatchResult, error) {
 	codegenList, err := echoprint.ParseCodegen(jsonData)
 	if err != nil {
 		return nil, err
 	}
 
-	matches, err := echoprint.MatchAll(codegenList)
-	return matches, err
+	matches := echoprint.MatchAll(codegenList)
+	return matches, nil
 }

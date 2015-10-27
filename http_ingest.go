@@ -1,14 +1,20 @@
 package main
 
 import (
+	"io/ioutil"
 	"net/http"
 
 	"github.com/AudioAddict/go-echoprint/echoprint"
+	"github.com/golang/glog"
 )
 
 func ingestHandler(w http.ResponseWriter, r *http.Request) {
-	var jsonData []byte
-	r.Body.Read(jsonData)
+	jsonData, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		glog.Error(err)
+		apiError(w, err)
+		return
+	}
 
 	results, err := peformIngest(jsonData)
 	if err != nil {

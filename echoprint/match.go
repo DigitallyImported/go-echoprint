@@ -169,7 +169,12 @@ func calculateConfidence(fp *Fingerprint, matchFp *Fingerprint, slop uint32) flo
 	defer t.finish()
 
 	timeDiffs := make(map[int]uint16)
-	matchCodeMap := getCodeTimeMap(matchFp, slop)
+
+	// limit the number of codes we map out to the length of the query FP
+	// anything beyond that is useless due to the way we clamp (see Fingerprint.NewClamped())
+	// this is dramatically faster for song matches, but prevents us from finding partials (mixes)
+	matchCodeMap := getCodeTimeMap(matchFp, len(fp.Codes), slop)
+
 	for i, code := range fp.Codes {
 		fpTime := fp.Times[i] / slop * slop
 
@@ -201,10 +206,14 @@ func calculateConfidence(fp *Fingerprint, matchFp *Fingerprint, slop uint32) flo
 	return float32(score) / float32(len(fp.Codes)) * 100.00
 }
 
-func getCodeTimeMap(fp *Fingerprint, slop uint32) map[uint32][]uint32 {
-	codeMap := make(map[uint32][]uint32, len(fp.Codes))
+func getCodeTimeMap(fp *Fingerprint, limit int, slop uint32) map[uint32][]uint32 {
+	if len(fp.Codes) < limit {
+		limit = len(fp.Codes)
+	}
 
-	for i, code := range fp.Codes {
+	codeMap := make(map[uint32][]uint32, limit)
+	for i := 0; i < limit; i++ {
+		code := fp.Codes[i]
 		time := fp.Times[i] / slop * slop
 		codeMap[code] = append(codeMap[code], time)
 	}

@@ -108,12 +108,11 @@ func Match(fp *Fingerprint) ([]*MatchResult, error) {
 
 	numResults := len(results)
 	cursor := 0
-
 	for cursor < numResults {
 
 		endRange := cursor + resExaminedPerIter
-		if endRange > numResults-1 {
-			endRange = numResults - 1
+		if endRange > numResults {
+			endRange = numResults
 		}
 
 		glog.V(3).Infof("Examing database results from %d through %d", cursor, endRange)

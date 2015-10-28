@@ -11,13 +11,17 @@ const (
 	maxIngestDuration  = 60 * 60 * 4
 	histogramMatchSlop = 2
 
-	minMatchScorePercent = 0.30 * 100
-	minMatchConfidence   = 0.35 * 100
-	bestMatchDiff        = 0.25
-	maxConfidence        = 100.00
+	minDBScorePercent = 0.30 * 100
+	bestMatchDiff     = 0.25
+	maxConfidence     = 100.00
 
-	resExaminedPerIter = 25
-	totalQueryRows     = 500
+	minMatchConfidenceHighQuality   = 0.70 * 100
+	minMatchConfidenceMediumQuality = 0.55 * 100
+	minMatchConfidenceLowQuality    = 0.35 * 100
+
+	searchDepthHighQuality   = 100
+	searchDepthMediumQuality = 200
+	searchDepthLowQuality    = 500
 )
 
 // MatchResult represents a response from the fingerprint matching algorithm
@@ -100,44 +104,46 @@ func Match(fp *Fingerprint) ([]*MatchResult, error) {
 		fp = fp.NewClamped()
 	}
 
+	var numRows int
+	var minMatchConfidence float32
+	switch fp.Quality() {
+	case qualityHigh:
+		numRows = searchDepthHighQuality
+		minMatchConfidence = minMatchConfidenceHighQuality
+	case qualityMedium:
+		numRows = searchDepthMediumQuality
+		minMatchConfidence = minMatchConfidenceMediumQuality
+	default:
+		numRows = searchDepthLowQuality
+		minMatchConfidence = minMatchConfidenceLowQuality
+	}
+
+	glog.V(2).Infof("Fingerprint quality is '%s', search depth is %d rows, min confidence is %f%%", fp.Quality(), numRows, minMatchConfidence)
+
 	var matches []*MatchResult
-	results, err := db.query(fp, 0, totalQueryRows, minMatchScorePercent)
+	results, err := db.query(fp, 0, numRows, minDBScorePercent)
 
 	if err != nil {
 		glog.Error(err)
 		return nil, err
 	}
 
-	numResults := len(results)
-	cursor := 0
-	for cursor < numResults {
-
-		endRange := cursor + resExaminedPerIter
-		if endRange > numResults {
-			endRange = numResults
+	for _, r := range results {
+		confidence := calculateConfidence(fp, r.fp, uint32(histogramMatchSlop))
+		if confidence >= minMatchConfidence {
+			glog.V(1).Info("Match result above minimum threshold, Confidence=", confidence, " TrackID=", r.fp.Meta.TrackID)
+			matches = append(matches, newMatchResult(r, confidence))
+		} else {
+			glog.V(2).Info("Match result below minimum threshold, Confidence=", confidence, " TrackID=", r.fp.Meta.TrackID)
 		}
+	}
 
-		glog.V(3).Infof("Examing database results from %d through %d", cursor, endRange)
-		for _, r := range results[cursor:endRange] {
-			confidence := calculateConfidence(fp, r.fp, uint32(histogramMatchSlop))
-			if confidence >= minMatchConfidence {
-				glog.V(1).Info("Match result above minimum threshold, Confidence=", confidence, " TrackID=", r.fp.Meta.TrackID)
-				matches = append(matches, newMatchResult(r, confidence))
-			} else {
-				glog.V(2).Info("Match result below minimum threshold, Confidence=", confidence, " TrackID=", r.fp.Meta.TrackID)
-			}
-		}
+	numMatches := len(matches)
 
-		cursor += resExaminedPerIter
-		numMatches := len(matches)
-
-		if numMatches > 0 {
-			sort.Sort(byConfidence(matches))
-			determineBestMatch(matches)
-			clampMatchConfidence(matches)
-			// once we have any matches at all we stop, this could be a bit smarter
-			break
-		}
+	if numMatches > 0 {
+		sort.Sort(byConfidence(matches))
+		determineBestMatch(matches)
+		clampMatchConfidence(matches)
 	}
 	return matches, nil
 }

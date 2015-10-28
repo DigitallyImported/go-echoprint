@@ -134,10 +134,10 @@ func (db *dbConnection) query(fp *Fingerprint, start int, rows int, minScore flo
 
 		result.score = calculateCodeScore(querySet, matchSet)
 		if result.score >= minScore {
-			glog.V(1).Infof("DB Match above minimum threshold, Score=%f, Meta=%+v", result.score, fp.Meta)
+			glog.V(2).Infof("DB Match above minimum threshold, Score=%f, Meta=%+v", result.score, fp.Meta)
 			results = append(results, result)
 		} else {
-			glog.V(2).Infof("DB Match below minimum threshold, Score=%f, Meta=%+v", result.score, fp.Meta)
+			glog.V(3).Infof("DB Match below minimum threshold, Score=%f, Meta=%+v", result.score, fp.Meta)
 		}
 	}
 

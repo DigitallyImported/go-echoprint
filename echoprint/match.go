@@ -126,6 +126,7 @@ func Match(fp *Fingerprint) ([]*MatchResult, error) {
 			}
 		}
 
+		cursor += resExaminedPerIter
 		numMatches := len(matches)
 
 		if numMatches > 0 {

@@ -16,7 +16,7 @@ import (
 
 const (
 	// TODO: config
-	maxSolrBooleanTerms = 1024
+	maxSolrBooleanTerms = 2048
 )
 
 type dbResult struct {
@@ -70,9 +70,11 @@ func DBDisconnect() {
 }
 
 // Query matches fingerprints against the database that meet the minimum code score
-func (db *dbConnection) query(fp *Fingerprint, rows int, minScore float32) ([]dbResult, error) {
+func (db *dbConnection) query(fp *Fingerprint, start int, rows int, minScore float32) ([]dbResult, error) {
 	t := trackTime("dbConnection.Query")
 	defer t.finish()
+
+	glog.V(2).Infof("Querying database rows from %d to %d", start, start+rows)
 
 	// build the unique set of codes for scoring
 	var querySet = make(map[uint32]struct{})
@@ -100,7 +102,8 @@ func (db *dbConnection) query(fp *Fingerprint, rows int, minScore float32) ([]db
 		Params: solr.URLParamMap{
 			"q": []string{"codes:" + strings.Join(codeListParams, " ")},
 		},
-		Rows: rows,
+		Rows:  rows,
+		Start: start,
 	}
 
 	resp, err := db.solrSelect(&q)

@@ -11,10 +11,12 @@ const (
 	maxIngestDuration  = 60 * 60 * 4
 	histogramMatchSlop = 2
 
-	minMatchScorePercent = 0.05 * 100
-	minMatchConfidence   = 0.25 * 100
+	minMatchScorePercent = 0.30 * 100
+	minMatchConfidence   = 0.35 * 100
 	bestMatchDiff        = 0.25
 	maxConfidence        = 100.00
+
+	totalQueryRows = 500
 )
 
 // MatchResult represents a response from the fingerprint matching algorithm
@@ -95,7 +97,7 @@ func Match(fp *Fingerprint) ([]*MatchResult, error) {
 	}
 
 	var matches []*MatchResult
-	results, err := db.query(fp, 500, minMatchScorePercent)
+	results, err := db.query(fp, 0, totalQueryRows, minMatchScorePercent)
 
 	if err != nil {
 		glog.Error(err)
@@ -149,7 +151,7 @@ func clampMatchConfidence(matches []*MatchResult) {
 }
 
 func calculateConfidence(fp *Fingerprint, matchFp *Fingerprint, slop uint32) float32 {
-	t := trackTime("calculateActualScore")
+	t := trackTime("calculateConfidence")
 	defer t.finish()
 
 	timeDiffs := make(map[int]uint16)

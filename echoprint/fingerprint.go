@@ -112,7 +112,7 @@ func (fp *Fingerprint) isMediumQuality() bool {
 
 // NewFingerprint decodes the codegen data and splits the audio fingerprint into a pair of
 // Code/Time integer arrays of equal size
-func NewFingerprint(codegenFp CodegenFp) (*Fingerprint, error) {
+func NewFingerprint(codegenFp *CodegenFp) (*Fingerprint, error) {
 	fp := &Fingerprint{Meta: codegenFp.Meta}
 	var err error
 

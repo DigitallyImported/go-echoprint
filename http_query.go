@@ -3,6 +3,7 @@ package main
 import (
 	"io/ioutil"
 	"net/http"
+	"runtime/debug"
 
 	"github.com/AudioAddict/go-echoprint/echoprint"
 	"github.com/golang/glog"
@@ -55,5 +56,7 @@ func peformQuery(jsonData []byte) ([]queryResult, error) {
 	for i, group := range matchGroups {
 		result[i] = newQueryResult(group)
 	}
+
+	debug.FreeOSMemory()
 	return result, nil
 }

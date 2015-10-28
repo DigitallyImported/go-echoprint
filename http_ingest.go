@@ -3,6 +3,7 @@ package main
 import (
 	"io/ioutil"
 	"net/http"
+	"runtime/debug"
 
 	"github.com/AudioAddict/go-echoprint/echoprint"
 	"github.com/golang/glog"
@@ -31,5 +32,7 @@ func peformIngest(jsonData []byte) ([]echoprint.IngestResult, error) {
 	}
 
 	results := echoprint.IngestAll(codegenList)
+
+	debug.FreeOSMemory()
 	return results, nil
 }

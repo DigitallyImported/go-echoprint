@@ -20,6 +20,7 @@ func main() {
 	router.HandleFunc("/query", queryHandler).Methods("GET", "POST")
 	router.HandleFunc("/ingest", ingestHandler).Methods("POST")
 
+	router.HandleFunc("/stats", statsHandler).Methods("GET")
 	router.HandleFunc("/purge", purgeHandler).Methods("GET")
 
 	loggingHandler := NewLoggingHandler(router)

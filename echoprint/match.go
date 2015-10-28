@@ -62,13 +62,13 @@ func newMatchGroupError(err error) []*MatchResult {
 
 // MatchAll performs mutiple matches in parallel, results are grouped by the index of the
 // fingerprint list so they may be returned in the order they are received
-func MatchAll(codegenList []CodegenFp) [][]*MatchResult {
+func MatchAll(codegenList []*CodegenFp) [][]*MatchResult {
 	var allMatches = make([][]*MatchResult, len(codegenList))
 	var wg sync.WaitGroup
 
 	for i, codegenFp := range codegenList {
 		wg.Add(1)
-		go func(group int, codegenFp CodegenFp) {
+		go func(group int, codegenFp *CodegenFp) {
 			defer wg.Done()
 
 			glog.Infof("Processing codegen %+v\n", codegenFp.Meta)

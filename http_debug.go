@@ -3,9 +3,22 @@ package main
 import (
 	"fmt"
 	"net/http"
+	"runtime"
 
 	"github.com/AudioAddict/go-echoprint/echoprint"
 )
+
+var statsInfo *stats
+
+func init() {
+	statsInfo = &stats{
+		Memory: new(runtime.MemStats),
+	}
+}
+
+type stats struct {
+	Memory *runtime.MemStats
+}
 
 func debugHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "POST" {
@@ -30,6 +43,12 @@ func debugHandler(w http.ResponseWriter, r *http.Request) {
 	} else {
 		renderView(w, "debug", nil)
 	}
+}
+
+func statsHandler(w http.ResponseWriter, r *http.Request) {
+	runtime.ReadMemStats(statsInfo.Memory)
+
+	renderResponse(w, statsInfo)
 }
 
 func purgeHandler(w http.ResponseWriter, r *http.Request) {

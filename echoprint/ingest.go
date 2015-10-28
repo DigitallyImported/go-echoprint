@@ -17,13 +17,13 @@ type IngestResult struct {
 var ErrTrackIDExists = errors.New("TrackID already exists in the database")
 
 // IngestAll takes an array of CodegenFp and stores them in the database in parallel
-func IngestAll(codegenList []CodegenFp) []IngestResult {
+func IngestAll(codegenList []*CodegenFp) []IngestResult {
 	var results = make([]IngestResult, len(codegenList))
 	var wg sync.WaitGroup
 
 	for i, codegenFp := range codegenList {
 		wg.Add(1)
-		go func(group int, codegenFp CodegenFp) {
+		go func(group int, codegenFp *CodegenFp) {
 			defer wg.Done()
 
 			glog.Infof("Processing codegen %+v\n", codegenFp.Meta)

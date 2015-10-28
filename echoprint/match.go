@@ -25,6 +25,7 @@ type MatchResult struct {
 	fp         *Fingerprint
 	Best       bool        `json:"best"`
 	TrackID    uint32      `json:"track_id"`
+	Filename   string      `json:"filename"`
 	UPC        string      `json:"upc"`
 	ISRC       string      `json:"isrc"`
 	Confidence float32     `json:"confidence"`
@@ -43,6 +44,7 @@ func newMatchResult(r dbResult, confidence float32) *MatchResult {
 	return &MatchResult{
 		fp:         r.fp,
 		TrackID:    r.fp.Meta.TrackID,
+		Filename:   r.fp.Meta.Filename,
 		UPC:        r.fp.Meta.UPC,
 		ISRC:       r.fp.Meta.ISRC,
 		IngestedAt: r.ingestedAt,

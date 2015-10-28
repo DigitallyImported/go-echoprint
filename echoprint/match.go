@@ -16,7 +16,8 @@ const (
 	bestMatchDiff        = 0.25
 	maxConfidence        = 100.00
 
-	totalQueryRows = 500
+	resExaminedPerIter = 25
+	totalQueryRows     = 500
 )
 
 // MatchResult represents a response from the fingerprint matching algorithm
@@ -38,13 +39,14 @@ func (m byConfidence) Len() int           { return len(m) }
 func (m byConfidence) Swap(i, j int)      { m[i], m[j] = m[j], m[i] }
 func (m byConfidence) Less(i, j int) bool { return m[i].Confidence > m[j].Confidence }
 
-func newMatchResult(r dbResult) *MatchResult {
+func newMatchResult(r dbResult, confidence float32) *MatchResult {
 	return &MatchResult{
 		fp:         r.fp,
 		TrackID:    r.fp.Meta.TrackID,
 		UPC:        r.fp.Meta.UPC,
 		ISRC:       r.fp.Meta.ISRC,
 		IngestedAt: r.ingestedAt,
+		Confidence: confidence,
 	}
 }
 
@@ -104,25 +106,37 @@ func Match(fp *Fingerprint) ([]*MatchResult, error) {
 		return nil, err
 	}
 
-	for _, r := range results {
-		match := newMatchResult(r)
-		match.Confidence = calculateConfidence(fp, match.fp, uint32(histogramMatchSlop))
-		if match.Confidence >= minMatchConfidence {
-			glog.V(1).Info("Match result above minimum threshold, Confidence=", match.Confidence, " TrackID=", match.TrackID)
-			matches = append(matches, match)
-		} else {
-			glog.V(2).Info("Match result below minimum threshold, Confidence=", match.Confidence, " TrackID=", match.TrackID)
+	numResults := len(results)
+	cursor := 0
+
+	for cursor < numResults {
+
+		endRange := cursor + resExaminedPerIter
+		if endRange > numResults-1 {
+			endRange = numResults - 1
+		}
+
+		glog.V(3).Infof("Examing database results from %d through %d", cursor, endRange)
+		for _, r := range results[cursor:endRange] {
+			confidence := calculateConfidence(fp, r.fp, uint32(histogramMatchSlop))
+			if confidence >= minMatchConfidence {
+				glog.V(1).Info("Match result above minimum threshold, Confidence=", confidence, " TrackID=", r.fp.Meta.TrackID)
+				matches = append(matches, newMatchResult(r, confidence))
+			} else {
+				glog.V(2).Info("Match result below minimum threshold, Confidence=", confidence, " TrackID=", r.fp.Meta.TrackID)
+			}
+		}
+
+		numMatches := len(matches)
+
+		if numMatches > 0 {
+			sort.Sort(byConfidence(matches))
+			determineBestMatch(matches)
+			clampMatchConfidence(matches)
+			// once we have any matches at all we stop, this could be a bit smarter
+			break
 		}
 	}
-
-	numMatches := len(matches)
-
-	if numMatches > 0 {
-		sort.Sort(byConfidence(matches))
-		determineBestMatch(matches)
-		clampMatchConfidence(matches)
-	}
-
 	return matches, nil
 }
 

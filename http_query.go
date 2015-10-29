@@ -10,17 +10,24 @@ import (
 )
 
 type queryResult struct {
-	Matches []*echoprint.MatchResult `json:"matches"`
-	Status  string                   `json:"status"`
+	Matches    []*echoprint.MatchResult `json:"matches"`
+	Status     string                   `json:"status"`
+	MatchCount int                      `json:"match_count"`
 }
 
 func newQueryResult(matches []*echoprint.MatchResult) queryResult {
 	qr := queryResult{Matches: matches}
-	if len(matches) > 0 {
+	qr.MatchCount = len(matches)
+
+	if qr.MatchCount > 0 {
 		if matches[0].Best {
 			qr.Status = "BEST_MATCH"
 		} else {
-			qr.Status = "POSSIBLE_MATCH"
+			if qr.MatchCount > 1 && matches[0].Confidence == 100 && matches[1].Confidence == 100 {
+				qr.Status = "DUPLICATE_MATCH"
+			} else {
+				qr.Status = "POSSIBLE_MATCH"
+			}
 		}
 	} else {
 		qr.Status = "NO_MATCH"
@@ -37,12 +44,13 @@ func queryHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	matches, err := peformQuery(jsonData)
+	result, err := peformQuery(jsonData)
 	if err != nil {
 		apiError(w, err)
 		return
 	}
-	renderResponse(w, matches)
+
+	renderResponse(w, result)
 }
 
 func peformQuery(jsonData []byte) ([]queryResult, error) {

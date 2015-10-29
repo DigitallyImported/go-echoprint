@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<schema name="audioaddict-echoprint" version="1.5">
+
+  <fieldType name="int" class="solr.TrieIntField" precisionStep="0" omitNorms="true" positionIncrementGap="0"/>
+  <fieldType name="date" class="solr.TrieDateField" precisionStep="0" positionIncrementGap="0"/>
+  <fieldType name="string" class="solr.StrField" sortMissingLast="true" multiValued="false" />
+  <fieldType name="long" class="solr.TrieLongField" precisionStep="0" positionIncrementGap="0" multiValued="false"/>
+
+  <field name="id" type="string" indexed="false" stored="true" required="true" multiValued="false"/>
+  <field name="_version_" type="long" indexed="true" stored="true"/>
+
+  <field name="codes" type="int" indexed="true" stored="false" required="true" multiValued="true"/>
+  <field name="trackId" type="int" indexed="true" stored="true" required="true" multiValued="false"/>
+  <field name="ingestedAt" type="date" indexed="false" stored="true" required="true" multiValued="false" default="NOW"/>
+
+  <uniqueKey>trackId</uniqueKey>
+  <defaultSearchField>codes</defaultSearchField>
+  <solrQueryParser defaultOperator="OR"/>
+</schema>

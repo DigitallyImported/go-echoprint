@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<config>
+
+  <luceneMatchVersion>4.10.3</luceneMatchVersion>
+  <dataDir>${solr.data.dir:}</dataDir>
+
+  <directoryFactory name="DirectoryFactory"
+                    class="${solr.directoryFactory:solr.NRTCachingDirectoryFactory}">
+  </directoryFactory>
+
+  <codecFactory class="solr.SchemaCodecFactory"/>
+  <schemaFactory class="ClassicIndexSchemaFactory"/>
+  <indexConfig>
+
+    <!-- Trade indexing performance for faster searching -->
+    <mergeFactor>2</mergeFactor>
+
+    <!-- go-echoprint is a single proc based app, so we can use the in memory lock -->
+    <lockType>single</lockType>
+    <infoStream>true</infoStream>
+  </indexConfig>
+
+  <updateHandler class="solr.DirectUpdateHandler2">
+
+    <updateLog>
+      <str name="dir">${solr.ulog.dir:}</str>
+    </updateLog>
+
+     <autoCommit>
+       <maxTime>60000</maxTime>
+       <openSearcher>true</openSearcher>
+     </autoCommit>
+
+     <autoSoftCommit>
+       <maxTime>${solr.autoSoftCommit.maxTime:-1}</maxTime>
+     </autoSoftCommit>
+
+  </updateHandler>
+
+  <query>
+    <!-- Max Boolean Clauses
+
+         Maximum number of clauses in each BooleanQuery,  an exception
+         is thrown if exceeded.
+
+         ** WARNING **
+
+         This option actually modifies a global Lucene property that
+         will affect all SolrCores.  If multiple solrconfig.xml files
+         disagree on this property, the value at any given moment will
+         be based on the last SolrCore to be initialized.
+
+      -->
+    <maxBooleanClauses>3072</maxBooleanClauses>
+
+
+    <!-- Solr Internal Query Caches
+
+         There are two implementations of cache available for Solr,
+         LRUCache, based on a synchronized LinkedHashMap, and
+         FastLRUCache, based on a ConcurrentHashMap.
+
+         FastLRUCache has faster gets and slower puts in single
+         threaded operation and thus is generally faster than LRUCache
+         when the hit ratio of the cache is high (> 75%), and may be
+         faster under other scenarios on multi-cpu systems.
+    -->
+
+    <!-- Filter Cache
+
+         Cache used by SolrIndexSearcher for filters (DocSets),
+         unordered sets of *all* documents that match a query.  When a
+         new searcher is opened, its caches may be prepopulated or
+         "autowarmed" using data from caches in the old searcher.
+         autowarmCount is the number of items to prepopulate.  For
+         LRUCache, the autowarmed items will be the most recently
+         accessed items.
+
+         Parameters:
+           class - the SolrCache implementation LRUCache or
+               (LRUCache or FastLRUCache)
+           size - the maximum number of entries in the cache
+           initialSize - the initial capacity (number of entries) of
+               the cache.  (see java.util.HashMap)
+           autowarmCount - the number of entries to prepopulate from
+               and old cache.
+      -->
+    <filterCache class="solr.FastLRUCache"
+                   size="8184"
+                   initialSize="1024"
+                   autowarmCount="512"/>
+
+    <!-- Query Result Cache
+
+         Caches results of searches - ordered lists of document ids
+         (DocList) based on a query, a sort, and the range of documents requested.
+      -->
+    <queryResultCache class="solr.LRUCache"
+                       size="8184"
+                       initialSize="1024"
+                       autowarmCount="512"/>
+
+    <!-- Document Cache
+
+         Caches Lucene Document objects (the stored fields for each
+         document).  Since Lucene internal document ids are transient,
+         this cache will not be autowarmed.
+      -->
+    <documentCache class="solr.LRUCache"
+                     size="4096"
+                     initialSize="512"
+                     autowarmCount="0"/>
+
+    <!-- Lazy Field Loading
+
+         If true, stored fields that are not requested will be loaded
+         lazily.  This can result in a significant speed improvement
+         if the usual case is to not load all stored fields,
+         especially if the skipped fields are large compressed text
+         fields.
+    -->
+   <enableLazyFieldLoading>true</enableLazyFieldLoading>
+
+   <queryResultWindowSize>100</queryResultWindowSize>
+   <queryResultMaxDocsCached>2000</queryResultMaxDocsCached>
+   <useColdSearcher>false</useColdSearcher>
+   <maxWarmingSearchers>20</maxWarmingSearchers>
+  </query>
+
+  <requestDispatcher handleSelect="false" >
+    <requestParsers enableRemoteStreaming="false"
+                    multipartUploadLimitInKB="2048000"
+                    formdataUploadLimitInKB="2048"
+                    addHttpRequestToContext="false"/>
+
+
+    <httpCaching never304="true" />
+  </requestDispatcher>
+
+  <requestHandler name="/select" class="solr.SearchHandler">
+     <lst name="defaults">
+       <str name="echoParams">explicit</str>
+       <int name="rows">10</int>
+       <str name="df">codes</str>
+     </lst>
+    </requestHandler>
+
+  <requestHandler name="/query" class="solr.SearchHandler">
+     <lst name="defaults">
+       <str name="echoParams">explicit</str>
+       <str name="wt">json</str>
+       <str name="indent">true</str>
+       <str name="df">codes</str>
+     </lst>
+  </requestHandler>
+
+  <requestHandler name="/get" class="solr.RealTimeGetHandler">
+     <lst name="defaults">
+       <str name="omitHeader">true</str>
+       <str name="wt">json</str>
+       <str name="indent">true</str>
+     </lst>
+  </requestHandler>
+
+  <requestHandler name="/admin/" class="solr.admin.AdminHandlers" />
+  <requestHandler name="/admin/ping" class="solr.PingRequestHandler">
+    <lst name="invariants">
+      <str name="q">solrpingquery</str>
+    </lst>
+    <lst name="defaults">
+      <str name="echoParams">all</str>
+    </lst>
+  </requestHandler>
+
+  <!--
+  <requestHandler name="/replication" class="solr.ReplicationHandler" >
+  </requestHandler>
+  -->
+
+  <updateRequestProcessorChain>
+    <processor class="solr.UUIDUpdateProcessorFactory">
+      <str name="fieldName">id</str>
+    </processor>
+    <processor class="solr.LogUpdateProcessorFactory" />
+    <processor class="solr.RunUpdateProcessorFactory" />
+  </updateRequestProcessorChain>
+
+  <queryResponseWriter name="json" class="solr.JSONResponseWriter">
+  </queryResponseWriter>
+
+  <admin>
+    <defaultQuery>*:*</defaultQuery>
+  </admin>
+
+</config>

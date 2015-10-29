@@ -13,6 +13,7 @@ import (
 const (
 	// 60 seconds worth of time offsets (60*1000 / 23.2)
 	fpSixtySecOffset = 2586
+	fpClampMinutes   = 4
 
 	mediumQualityThreshold = 256
 	lowQualityThreshold    = 128
@@ -76,7 +77,7 @@ func (fp *Fingerprint) NewClamped() *Fingerprint {
 	// if we use the codegen on a file with start/stop times, the first timestamp
 	// is ~= the start time given. There might be a (slightly) earlier timestamp
 	// in another band, but this is good enough
-	clampDuration := fpSixtySecOffset*3 + fp.Times[0]
+	clampDuration := fpSixtySecOffset*fpClampMinutes + fp.Times[0]
 	for i, time := range fp.Times {
 		if time > clampDuration {
 			clampedFp.Codes = fp.Codes[:i]

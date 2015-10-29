@@ -19,8 +19,8 @@ const (
 	minMatchConfidenceMediumQuality = 0.55 * 100
 	minMatchConfidenceLowQuality    = 0.35 * 100
 
-	searchDepthHighQuality   = 100
-	searchDepthMediumQuality = 200
+	searchDepthHighQuality   = 200
+	searchDepthMediumQuality = 350
 	searchDepthLowQuality    = 500
 )
 

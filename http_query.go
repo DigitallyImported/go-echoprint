@@ -9,6 +9,14 @@ import (
 	"github.com/golang/glog"
 )
 
+const (
+	statusBestMatch      = "BEST_MATCH"
+	statusDuplicateMatch = "DUPLICATE_MATCH"
+	statusPossibleMatch  = "POSSIBLE_MATCH"
+	statusNoMatch        = "NO_MATCH"
+	statusError          = "ERROR"
+)
+
 type queryResult struct {
 	Matches    []*echoprint.MatchResult `json:"matches"`
 	Status     string                   `json:"status"`
@@ -20,17 +28,19 @@ func newQueryResult(matches []*echoprint.MatchResult) queryResult {
 	qr.MatchCount = len(matches)
 
 	if qr.MatchCount > 0 {
-		if matches[0].Best {
-			qr.Status = "BEST_MATCH"
+		if qr.MatchCount == 1 && matches[0].Error != "" {
+			qr.Status = statusError
+		} else if matches[0].Best {
+			qr.Status = statusBestMatch
 		} else {
 			if qr.MatchCount > 1 && matches[0].Confidence == 100 && matches[1].Confidence == 100 {
-				qr.Status = "DUPLICATE_MATCH"
+				qr.Status = statusDuplicateMatch
 			} else {
-				qr.Status = "POSSIBLE_MATCH"
+				qr.Status = statusPossibleMatch
 			}
 		}
 	} else {
-		qr.Status = "NO_MATCH"
+		qr.Status = statusNoMatch
 	}
 
 	return qr

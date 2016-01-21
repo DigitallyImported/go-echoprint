@@ -15,7 +15,7 @@ const (
 	bestMatchDiff     = 0.25
 	maxConfidence     = 100.00
 
-	minMatchConfidenceHighQuality   = 0.70 * 100
+	minMatchConfidenceHighQuality   = 0.60 * 100
 	minMatchConfidenceMediumQuality = 0.55 * 100
 	minMatchConfidenceLowQuality    = 0.35 * 100
 

@@ -28,7 +28,7 @@ func newQueryResult(matches []*echoprint.MatchResult) queryResult {
 	qr.MatchCount = len(matches)
 
 	if qr.MatchCount > 0 {
-		if qr.MatchCount == 1 && matches[0].Error != "" {
+		if qr.MatchCount == 1 && matches[0].Error != nil {
 			qr.Status = statusError
 		} else if matches[0].Best {
 			qr.Status = statusBestMatch

@@ -16,7 +16,7 @@ import (
 
 const (
 	// TODO: config
-	maxSolrBooleanTerms = 3072
+	maxSolrBooleanTerms = 4096
 )
 
 type dbResult struct {

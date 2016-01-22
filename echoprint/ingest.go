@@ -16,6 +16,9 @@ type IngestResult struct {
 // ErrTrackIDExists is returned during ingestion when the provided TrackID already exists in the database
 var ErrTrackIDExists = errors.New("TrackID already exists in the database")
 
+// ErrTrackIDMissing is returned during ingestion when no TrackID is provided
+var ErrTrackIDMissing = errors.New("Missing Track ID")
+
 // IngestAll takes an array of CodegenFp and stores them in the database in parallel
 func IngestAll(codegenList []*CodegenFp) []IngestResult {
 	var results = make([]IngestResult, len(codegenList))
@@ -52,6 +55,12 @@ func IngestAll(codegenList []*CodegenFp) []IngestResult {
 
 // Ingest takes a single CodegenFp and stores it in the database for matching
 func Ingest(fp *Fingerprint) error {
+
+	if fp.Meta.TrackID == 0 {
+		glog.V(3).Info("TrackID is missing, aborting ingestion")
+		return ErrTrackIDMissing
+	}
+
 	exists, err := db.checkTrackExists(fp.Meta.TrackID)
 	if err != nil {
 		glog.Error(err)

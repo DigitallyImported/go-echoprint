@@ -33,13 +33,13 @@ func IngestAll(codegenList []*CodegenFp) []IngestResult {
 
 			fp, err := NewFingerprint(codegenFp)
 			if err != nil {
-				results[group] = IngestResult{Error: err.Error()}
+				results[group] = IngestResult{TrackID: fp.Meta.TrackID, Error: err.Error()}
 				return
 			}
 
 			err = Ingest(fp)
 			if err != nil {
-				results[group] = IngestResult{Error: err.Error()}
+				results[group] = IngestResult{TrackID: fp.Meta.TrackID, Error: err.Error()}
 				return
 			}
 
@@ -76,5 +76,5 @@ func Ingest(fp *Fingerprint) error {
 
 	err = db.save(fp)
 
-	return nil
+	return err
 }
